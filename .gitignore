@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.cache/
+.mplconfig/
+.venv/
+*.npz
+*.h5
+*.xdmf

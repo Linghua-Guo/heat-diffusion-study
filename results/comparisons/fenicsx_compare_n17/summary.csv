@@ -1,0 +1,2 @@
+n,dofs,source_kind,strength,mesh_size_h,source_integral,t_min,t_max,xdmf_path
+17,324,square,100.0,0.058823529411764705,5.536332179930795,0.0,1.6004413040402878,/Users/glh/Documents/新凯来/PDE求解/二位热扩散问题/results/comparisons/fenicsx_compare_n17/temperature.xdmf
