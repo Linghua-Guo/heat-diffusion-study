@@ -12,9 +12,12 @@ bash scripts/run_fenicsx_heat.sh --n 64 --outdir results/baselines/fenicsx_singl
 
 输出：
 
-- `results/baselines/fenicsx_single/temperature.xdmf`。
+- `results/baselines/fenicsx_single/temperature.xdmf`：给 ParaView 使用的 mesh + field metadata；
+- `results/baselines/fenicsx_single/temperature.h5`：XDMF 引用的实际数值数据；
+- `results/baselines/fenicsx_single/temperature.png`：用 matplotlib 生成的 quick-look 图；
+- `results/baselines/fenicsx_single/summary.csv`：核心数值 metadata。
 
-该文件可用 ParaView 打开，也可继续用 PyVista 读取并可视化。
+其中 `.xdmf` 和 `.h5` 需要放在一起。ParaView 打开 `.xdmf` 时会自动读取 `.h5`；`temperature.png` 用于在 VS Code 或 GitHub 中快速检查结果。
 
 FEniCSx 版本的核心仍然是弱形式：
 
@@ -47,7 +50,7 @@ $$
   -> 定义 Dirichlet 边界条件
   -> 写出 UFL 弱形式
   -> 交给 PETSc 求解
-  -> 输出 XDMF 和 summary.csv
+  -> 输出 XDMF/HDF5、PNG 和 summary.csv
 ```
 
 第一部分是依赖导入：
@@ -154,7 +157,17 @@ $$
 source.interpolate(heat_source)
 ```
 
-表示把这个函数插值到有限元节点上。粗网格时，square source 的边界不一定与 mesh 对齐，因此离散热源积分 $\int_\Omega f_h dx$ 会随 mesh 变化。
+表示把这个函数插值到有限元节点上。
+
+这里有一个重要 caveat：真实的 square source 是不连续函数，但当前代码把它插值到连续的 P1 Lagrange 空间。也就是说，FEniCSx 实际参与积分的是 $f_h$，不是精确的分片常数 $f$。对 P1 Lagrange 元来说，`heat_source(x)` 在节点上取值，然后由 basis functions 在单元内线性延拓。
+
+因此：
+
+- 如果某个 triangle 的顶点一部分在 source 区域内、一部分在区域外，该单元内部的 $f_h$ 会线性过渡，而不是突然跳变；
+- 粗网格时，square source 的边界不一定与 mesh 对齐，因此离散热源积分 $\int_\Omega f_h dx$ 会随 mesh 变化；
+- 网格加密后，这个 nodal interpolation 会逐渐逼近原始 discontinuous source，但 sharp edge 附近仍是主要误差来源。
+
+如果后续想更忠实地表示分片常数热源，可以改用 cellwise 的 `DG0` source，或在 UFL 积分表达式中使用 conditional expression。
 
 边界条件：
 
@@ -259,10 +272,11 @@ t_max = uh.x.array.max()
 ```text
 temperature.xdmf
 temperature.h5
+temperature.png
 summary.csv
 ```
 
-其中 `summary.csv` 用来记录可复现实验的核心数值。
+其中 `temperature.xdmf`/`temperature.h5` 用于 ParaView，`temperature.png` 是 matplotlib 生成的 quick-look 图，`summary.csv` 用来记录可复现实验的核心数值。
 
 该脚本与有限差分脚本的差别在于：
 

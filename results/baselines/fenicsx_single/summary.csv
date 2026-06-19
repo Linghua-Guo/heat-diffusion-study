@@ -1,0 +1,2 @@
+n,dofs,source_kind,strength,mesh_size_h,source_integral,t_min,t_max,xdmf_path,png_path
+64,4225,square,100.0,0.015625,4.1259765625,0.0,1.3364069808828647,/Users/glh/Documents/新凯来/PDE求解/二位热扩散问题/results/baselines/fenicsx_single/temperature.xdmf,/Users/glh/Documents/新凯来/PDE求解/二位热扩散问题/results/baselines/fenicsx_single/temperature.png

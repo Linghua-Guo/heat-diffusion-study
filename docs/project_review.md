@@ -122,7 +122,7 @@ $$
 ## 6. 已知限制
 
 1. `solve_fenicsx_heat.py` 当前只支持 square source；还没有支持 gaussian/two_gaussian。
-2. FEniCSx 当前只输出 XDMF/HDF5 和 summary，没有生成 PNG 图。
+2. 默认 CI 只覆盖有限差分 smoke tests；FEniCSx 依赖较重，目前仍以本地 `fenicsx` conda 环境验证。
 3. FD 与 FEM 对比目前主要比较 `Tmax` 和 source integral；后续应加入场级误差比较。
 4. FEniCSx 中的 square source 是通过 nodal interpolation 表示的，粗网格下热源积分会随 mesh 对齐方式变化。
 5. 目前 FEniCSx 与 FD 的结果组织已经统一，但还没有自动化 comparison runner。
@@ -132,7 +132,7 @@ $$
 优先级从高到低：
 
 1. 扩展 FEniCSx source：支持 `square`、`gaussian`、`two_gaussian`，与 FD 脚本一致。
-2. 增加 FEniCSx 可视化：输出温度图和热源图。
+2. 增加 FEniCSx source 可视化：除 temperature quick-look 外，也输出热源图。
 3. 写一个统一 comparison 脚本，自动运行 FD/FEniCSx 对齐网格并生成表格。
 4. 对 FEM 结果做残差/能量范数分析：
 

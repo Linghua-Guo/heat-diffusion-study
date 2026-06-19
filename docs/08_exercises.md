@@ -1,323 +1,851 @@
-# 分层练习题与批改
+# 分层 Q&A
 
-## 19. 分层练习题
+本章把前面练习题整理成 Q&A。所有问题按主题编码，答案只保留标准表述，便于复习和检索。
 
-### 19.1 基础题
+## 问题索引
 
-1. 写出二维稳态热扩散问题的 PDE、区域和边界条件。
+| 编码 | 主题 |
+|---|---|
+| Q01-Q09 | 物理模型、PDE、边界条件与温度尺度 |
+| Q10-Q17 | 弱形式、分部积分、Galerkin 与残差 |
+| Q18-Q31 | 有限元空间、basis functions、stiffness matrix |
+| Q32-Q40 | 有限差分、Kronecker product、residual |
+| Q41-Q49 | CG、solver、tolerance 与数值尺度 |
+| Q50-Q67 | FEniCSx 实现、UFL、source interpolation、ParaView |
+| Q68-Q78 | 代码细节、结果分析、FD/FEM 对比 |
+| Q79-Q86 | 非均匀热导率、瞬态问题、surrogate model |
 
-    答：
-    - 二维PDE写作$\nabla T(x,y)=f(x,y)$，即$\frac{\partial^2 T(x,y)}{\partial x^2}+\frac{\partial^2 T(x,y)}{\partial y^2}=f(x,y)$.
-    - 区域其实取决于实际情况，如上述例子则是一个方形；区域常记做$\Omega$，其边界常记为$\partial\Omega$.
-    - 边界条件以上述例子为参照，则是区域边界为恒温0度，比如边界和冷却系统联通。
+## A. 物理模型与 PDE
 
-    批改：
-    - 区域和边界条件的理解是对的。
-    - PDE 这里需要改正。热扩散稳态 Poisson 方程不是 $\nabla T=f$，而是
-      $$
-      -\nabla^2T=f.
-      $$
-      其中 $\nabla T$ 是梯度，是一个向量；$\nabla^2T$ 或 $\Delta T$ 才是 Laplace 算子，是标量。
-    - 如果展开，应写为
-      $$
-      -\left(\frac{\partial^2T}{\partial x^2}+\frac{\partial^2T}{\partial y^2}\right)=f(x,y).
-      $$
-    - 本题较完整的答案是：
-      $$
-      \begin{cases}
-      -\nabla^2T=f, & (x,y)\in\Omega,\\
-      T=0, & (x,y)\in\partial\Omega.
-      \end{cases}
-      $$
+### Q01. 二维稳态热扩散问题的标准 PDE 是什么？
 
-2. 解释 $T(x,y)$、$f(x,y)$、$\Omega$、$\partial\Omega$ 的含义。
+标准模型是 Poisson equation：
 
-    答：
-    - $T(x,y)$ 表示在位置点$(x,y)$的温度（也可叫做温度场）。
-    - $f(x,y)$ 表示热源在空间上的影响函数。
-    - $\Omega$ 表示研究的区域，$\partial\Omega$ 表示区域的边界。
+$$
+\begin{cases}
+-\Delta T=f, & (x,y)\in\Omega,\\
+T=0, & (x,y)\in\partial\Omega.
+\end{cases}
+$$
 
-    批改：
-    - $T(x,y)$、$\Omega$、$\partial\Omega$ 的解释正确。
-    - $f(x,y)$ 建议说得更物理一些：它是热源项或单位热导率下的体热源强度，不是温度本身。
-    - 更准确表述：
-      $$
-      f(x,y)\text{ 表示单位面积上的热源强度，决定区域内部哪里在发热、发热多强。}
-      $$
-    - 在无量纲模型 $-\nabla^2T=f$ 中，$f$ 的量纲相当于温度除以长度平方。
+其中 $T$ 是温度场，$f$ 是热源项，$\Omega$ 是计算区域，$\partial\Omega$ 是区域边界。注意 $\nabla T$ 是梯度向量，$\Delta T=\nabla^2T$ 才是 Laplacian。
 
-3. 为什么中心热源会导致中心附近温度更高？
+### Q02. 展开写出二维 Laplacian 后，方程是什么？
 
-    答：中心热源产生的热量会向边缘低温区域扩散，这个符合热力学第二定律（熵增），越靠近边缘温度越低，越靠近中心温度越高。
+二维 Laplacian 为：
 
-    批改：
-    - 直觉是正确的：热源处持续输入热量，边界又被固定为低温，因此温度峰值会出现在热源附近。
-    - “符合热力学第二定律”可以作为物理直觉，但在本 PDE 语境中，更直接的解释是：Poisson 方程把热源 $f>0$ 转化为温度场的局部抬升，Dirichlet 边界 $T=0$ 则把边界固定为散热端。
-    - 可以补一句最大值原理的直觉：对于内部正热源和零边界，解通常在内部形成正温度峰值，并向边界衰减。
+$$
+\Delta T=
+\frac{\partial^2T}{\partial x^2}
++
+\frac{\partial^2T}{\partial y^2}.
+$$
 
-4. 为什么边界条件 $T=0$ 会让温度向边界降低？
+因此强形式为：
 
-    答：答案同问题3.
+$$
+-\left(
+\frac{\partial^2T}{\partial x^2}
++
+\frac{\partial^2T}{\partial y^2}
+\right)=f(x,y).
+$$
 
-    批改：
-    - 这题和第 3 题相关，但最好单独说明边界条件的作用。
-    - 更准确的回答是：$T=0$ 把边界强制固定为最低参考温度。内部热源使区域内温度升高，而边界始终保持 0，因此从内部高温区域到边界会形成温度梯度。
-    - 物理上，零温边界相当于理想散热器；数学上，Dirichlet 边界给解施加了固定边界值，使温度场必须在边界处降到 0。
+### Q03. $T(x,y)$ 的物理含义是什么？
 
-### 19.2 推导题
+$T(x,y)$ 是位置 $(x,y)$ 处的温度，也称为温度场。它是未知函数，需要通过 PDE 和边界条件求解。
 
-1. 从 $-\nabla^2T=f$ 出发，推导弱形式。
+### Q04. $f(x,y)$ 的物理含义是什么？
 
-    答：
-    从PDE出发，首先定义基函数线性空间 $span\{v_i\}$，且如果真实解可以近似为$T\approx T_h=\sum_i T_iv_i$，那么近似解的残差$R=-\nabla^2T_h-f$在基函数线性空间中为0，即残差$R$和所有基函数的内积为0，$(R,v_i)=\iint_\Omega R\,v_i\,dS=0,\,\forall v_i$. 这样我们就可以写出以下方程：
-    $$
-    -\sum_i T_i \iint_\Omega (\nabla^2v_i)v_j\,dS-\iint_\Omega fv_j\,dS=0
-    $$
-    因为$(\nabla^2v_i)v_j=\nabla((\nabla v_i)v_j)-\nabla v_i\nabla v_j$，且第一项表示向量的散度在2维面积分，由高斯公式得到
-    $$
-    \iint_\Omega \nabla((\nabla v_i)v_j)\,dS=\int_{\partial\Omega} (\nabla v_i)v_j\cdot d\vec{l}
-    $$
-    其中$d\vec{l}$为方向向外的线积分元。
-    无需进一步推导，因为基函数构造时需满足边界条件，即$v_i$在边界$\partial\Omega$恒等于0，所以积分为0，则方程可以写成：
-    $$
-    \sum_i T_i \iint_\Omega \nabla v_i \nabla v_j\,dS-\iint_\Omega fv_j\,dS=0
-    $$
-    至此我们通过构造基函数以及应用边界条件，成功将二次方程转化为一次方程。
+$f(x,y)$ 是热源项，表示单位面积上的发热强度。在无量纲模型 $-\Delta T=f$ 中，$f$ 的量纲相当于温度除以长度平方。
 
-    批改：
-    - 你的主线是对的：从近似解 $T_h$ 出发，考虑残差，并要求残差在测试空间方向上为零。这就是 Galerkin 方法的核心直觉。
-    - 需要修正几个关键符号。
-    - 第一，测试函数空间建议写作 $V_h=\operatorname{span}\{\phi_i\}$，不要写成 $span\{v_i\}$ 后又把 $v_i$ 同时当测试函数和基函数。通常令
-      $$
-      T_h=\sum_jT_j\phi_j,\quad v_h=\phi_i.
-      $$
-    - 第二，散度恒等式应写成
-      $$
-      \nabla\cdot(v_j\nabla v_i)
-      =
-      \nabla v_j\cdot\nabla v_i+v_j\nabla^2v_i.
-      $$
-      因此
-      $$
-      (\nabla^2v_i)v_j
-      =
-      \nabla\cdot(v_j\nabla v_i)-\nabla v_i\cdot\nabla v_j.
-      $$
-      你写的方向是对的，但要把散度符号写成 $\nabla\cdot(\cdot)$，并注意是 $v_j\nabla v_i$。
-    - 第三，边界项中消失的是测试函数 $v_j$。边界项应类似
-      $$
-      \int_{\partial\Omega}v_j\nabla v_i\cdot n\,ds.
-      $$
-      由于 Dirichlet 问题的测试函数满足 $v_j=0$ on $\partial\Omega$，所以边界项为 0。
-    - 第四，最后一句“二次方程转化为一次方程”建议改为“把对 $T$ 的二阶导数要求转化为一阶导数要求”。这里不是代数意义上的二次方程，而是二阶微分算子变成了一阶梯度内积。
-    - 更标准的最终弱形式是：
-      $$
-      \int_\Omega \nabla T_h\cdot\nabla v_h\,dS
-      =
-      \int_\Omega fv_h\,dS,
-      \quad \forall v_h\in V_h.
-      $$
-      取 $v_h=\phi_i$，得到
-      $$
-      \sum_jT_j\int_\Omega \nabla\phi_j\cdot\nabla\phi_i\,dS
-      =
-      \int_\Omega f\phi_i\,dS.
-      $$
+### Q05. $\Omega$ 和 $\partial\Omega$ 分别是什么？
 
-2. 说明分部积分后边界项为什么消失。
+$\Omega$ 是研究的空间区域。例如单位正方形：
 
-    答：边界项消失的原因是因为运用高斯公式后，积分含有基函数$v_i$，其在边界上很等于0。
+$$
+\Omega=[0,1]\times[0,1].
+$$
 
-    批改：
-    - 方向正确，但有两个小问题。
-    - “很等于 0”应为“恒等于 0”。
-    - 更精确地说，边界项含有的是测试函数，而不是所有基函数都自动在边界为 0。对于齐次 Dirichlet 边界条件，测试函数空间取为
-      $$
-      V_0=\{v: v=0\text{ on }\partial\Omega\}.
-      $$
-      因此边界项
-      $$
-      \int_{\partial\Omega}v\frac{\partial T}{\partial n}\,ds
-      $$
-      因为 $v=0$ 而消失。
-    - 如果是非齐次 Dirichlet 条件，通常会先做 lifting，把未知函数拆成满足边界值的部分加上零边界的测试空间；测试函数仍然在边界为 0。
+$\partial\Omega$ 是区域边界，即正方形的四条边。
 
-3. 写出有限元离散后的矩阵元素 $A_{ij}$ 和 $b_i$。
+### Q06. 为什么中心热源会让中心附近温度更高？
 
-    答：这里我们可以讲1.中最后公式的$ij$对换，以保证index的对应，那么对应的矩阵元素是：
-    $$
-    A_{ij}=\sum_i T_j \iint_\Omega \nabla v_j \nabla v_i\,dS\\
-    b_i=\iint_\Omega fv_i\,dS
-    $$
+内部热源 $f>0$ 持续向区域输入热量，而边界被固定为 $T=0$，相当于理想散热器。因此温度通常在热源附近抬升，并向边界衰减。数学上，Poisson 方程把正热源转化为内部的正温度响应。
 
-    批改：
-    - 这里 $b_i$ 基本正确。
-    - $A_{ij}$ 需要修正：矩阵元素本身不包含未知系数 $T_j$，也不包含外面的求和。
-    - 正确写法是
-      $$
-      A_{ij}=\int_\Omega \nabla\phi_j\cdot\nabla\phi_i\,dS,
-      $$
-      $$
-      b_i=\int_\Omega f\phi_i\,dS.
-      $$
-    - 线性系统整体才是
-      $$
-      \sum_jA_{ij}T_j=b_i.
-      $$
-    - 如果用你的 $v_i$ 记号，也应写为
-      $$
-      A_{ij}=\int_\Omega \nabla v_j\cdot\nabla v_i\,dS.
-      $$
-      其中 $i$ 对应测试函数，$j$ 对应 trial basis function。
+### Q07. 为什么 $T=0$ 边界会让温度向边界降低？
 
-4. 解释矩阵 $A$ 为什么是稀疏矩阵。
-    
-    答：因为基函数定义为当前格点局部的影响函数，且不同基函数在线性空间中正交，这意味着矩阵 $A$ 是稀疏。不过我觉得我的解释还不够严密。
+Dirichlet 条件 $T=0$ 强制边界温度固定为参考低温。内部热源使区域内部升温，但边界不能升温，因此从内部到边界形成温度梯度。
 
-    批改：
-    - 你觉得“不够严密”是对的；关键问题在于“正交”这句话不准确。
-    - Lagrange 有限元基函数一般不是正交基。矩阵稀疏不是因为基函数正交，而是因为基函数具有局部支撑。
-    - 矩阵元素是
-      $$
-      A_{ij}=\int_\Omega \nabla\phi_j\cdot\nabla\phi_i\,dS.
-      $$
-      如果 $\phi_i$ 和 $\phi_j$ 的支撑区域没有重叠，则它们的梯度也没有共同非零区域，因此
-      $$
-      A_{ij}=0.
-      $$
-    - 对于 $P_1$ Lagrange 元，一个节点的基函数只在围绕该节点的一圈三角形上非零。因此节点 $i$ 只和相邻节点产生矩阵耦合，远处节点对应的矩阵元素为 0。
-    - 更准确的答案是：$A$ 稀疏来自有限元基函数的局部支撑和网格的局部连接结构，而不是来自基函数正交。
+### Q08. 这里的 $T=0$ 是否表示真实绝对零度？
 
-### 19.3 代码题
+不一定。通常 $T=0$ 是参考温度或相对温度。例如边界与恒温冷却系统相连，可把冷却温度设为零点。
 
-1. 运行 `solve_fd_heat.py`，生成一张温度云图。
+### Q09. 如果热源强度翻倍，温度场为什么也翻倍？
 
-    results/baselines/fd_single/temperature.png
+Poisson 方程和齐次 Dirichlet 边界条件都是线性的。形式上：
 
-    批改：
-    - 完成。建议在答案里顺手记录 `summary.csv` 中的核心数值，例如 `t_max`、`relative_residual` 和 `heat_source_integral`。这样不仅有图，也有可复现实验记录。
+$$
+T=(-\Delta)^{-1}f.
+$$
 
-2. 把 `--source square` 改成 `--source gaussian`，比较温度场。
+所以：
 
-    results/baselines/fd_gaussian/temperature.png
+$$
+f\to\alpha f
+\quad\Rightarrow\quad
+T\to\alpha T.
+$$
 
-    批改：
-    - 完成。建议补一句观察结论：Gaussian 热源的热源分布和温度分布都更平滑；square 热源在热源边界处有不连续跳变，因此温度梯度变化更明显。
-    - 也可以比较两个 summary：
-      - square source 的 `heat_source_integral` 约为 4；
-      - gaussian source 的 `heat_source_integral` 约为 2.262；
-      因此二者的 `t_max` 不能只从峰值强度 100 来比较，还要考虑总热源强度。
+离散后也是：
 
-3. 把 `--n` 从 32 改到 128，记录最大温度和运行时间。
+$$
+AU=b,
+$$
 
-    - n=32:
-        - t_max: 0.7637532352767834
-        - elapsed_seconds: 0.001334624997980427
-    - n=128:
-        - t_max: 0.7693165760544349
-        - elapsed_seconds: 0.0456337910000002
-    最大温度几乎相等，但是n=128用时约为n=32的34倍。
+若 $b\to\alpha b$，则 $U\to\alpha U$。
 
-    批改：
-    - 记录方式很好，已经包含了关键的 accuracy/runtime 对比。
-    - 这里你记录的是 Gaussian source 的结果，而不是 square source；从数值看，$T_{\max}$ 已经从 0.7638 收敛到 0.7693，说明 Gaussian 情况下网格收敛很平滑。
-    - “最大温度几乎相等”可以更精确地说：相对变化约为
-      $$
-      \frac{0.7693-0.7638}{0.7693}\approx 0.7\%.
-      $$
-    - 用时增长明显是合理的，因为自由度从
-      $$
-      32^2=1024
-      $$
-      增加到
-      $$
-      128^2=16384,
-      $$
-      自由度增加了 16 倍；直接求解器的时间通常会比线性增长更快。
+## B. 弱形式与 Galerkin 思想
 
-4. 使用 `--solver cg`，观察迭代求解器是否正常收敛。
+### Q10. 为什么需要弱形式？
 
-    - t_max: 0.7693165760544942
-    - elapsed_seconds: 0.08487920900006429
+强形式 $-\Delta T=f$ 要求 $T$ 至少有二阶导数。复杂几何、不连续热源、分片材料会让这个要求过强。弱形式通过分部积分把二阶导数转移为一阶梯度内积，使解空间要求降低，也更适合有限元离散。
 
-    奇怪的是cg求解反而慢，可能是因为查分情况下矩阵并不复杂，解析求解更快。
+### Q11. 从 $-\Delta T=f$ 推导弱形式的第一步是什么？
 
-    批改：
-    - 观察正确：在这个二维、规模不大的问题中，CG 可能比直接求解慢。
-    - 这里“解析求解”建议改成“直接求解”。`spsolve` 不是解析解，而是稀疏直接线性代数求解。
-    - CG 是否正常收敛，最好同时记录：
-      - `cg_iterations`
-      - `relative_residual`
-    - 对小型 2D 问题，直接求解器常常很快；CG 的优势通常出现在更大规模、尤其是 3D 问题中，并且通常需要合适的预条件器。
-    - 因此结论可以写成：当前 2D 测试规模下，直接求解器更快；但随着自由度增加，直接求解器内存和 fill-in 成本会迅速上升，迭代法更有优势。
+取测试函数 $v$，两边乘以 $v$ 并在区域上积分：
 
-### 19.4 分析题
+$$
+\int_\Omega (-\Delta T)v\,dx
+=
+\int_\Omega fv\,dx.
+$$
 
-1. 为什么热源强度翻倍时，温度场也会翻倍？
+这里 $dx$ 表示面积积分元，在二维中也可写作 $dS$。
 
-    根据泊松方程$-\nabla^2 T=f$, 热源在空间上扩散程度与$f$成正比，所以热源翻倍，温度场也翻倍。或着可以直接理解为温度是热源函数在空间上的2重积分，积分的结果和热源强度常数有线性关系。
+### Q12. 分部积分公式在这里如何使用？
 
-    批改：
-    - 结论正确，原因是 Poisson 方程和边界条件都是线性的。
-    - “温度是热源函数在空间上的 2 重积分”这个说法有一定直觉意义，但不够严谨。更准确地说，温度是热源经过 Poisson 算子的逆作用得到的结果：
-      $$
-      T=(-\Delta)^{-1}f.
-      $$
-    - 由于 $(-\Delta)^{-1}$ 是线性算子，所以
-      $$
-      f\to \alpha f
-      \quad\Rightarrow\quad
-      T\to \alpha T.
-      $$
-    - 离散形式也一样：
-      $$
-      AU=b.
-      $$
-      若 $b\to \alpha b$，则
-      $$
-      U\to \alpha U.
-      $$
+使用恒等式：
 
-2. 为什么 Gaussian 热源的温度场通常比方形热源更平滑？
+$$
+\nabla\cdot(v\nabla T)
+=
+\nabla v\cdot\nabla T
++
+v\Delta T.
+$$
 
-    因为高斯函数在全平面可导，而方形热源在边缘并不连续。由柏松方程的弱形式我们得知温度的梯度与热源函数相关，如果热源连续，那温度也会更加平滑。
+整理得：
 
-    批改：
-    - 主要判断正确：Gaussian 热源平滑，square 热源有跳变，所以 Gaussian 产生的温度场通常更平滑。
-    - “柏松”应写为“泊松”。
-    - “弱形式得知温度的梯度与热源函数相关”这个表述可以更精确：弱形式中
-      $$
-      \int_\Omega \nabla T\cdot\nabla v\,dx=\int_\Omega fv\,dx
-      $$
-      说明热源 $f$ 通过整体积分关系驱动温度梯度，而不是点对点地直接决定 $\nabla T$。
-    - 更严谨的说法是：椭圆型方程有平滑效应，右端项越平滑，解通常越平滑；方形热源的边界不连续，会在温度场梯度中留下更明显的局部变化。
+$$
+-(\Delta T)v
+=
+\nabla T\cdot\nabla v
+-
+\nabla\cdot(v\nabla T).
+$$
 
-3. 为什么热点边缘附近需要更细网格？
+积分后：
 
-    热点边缘由于热源只在内部，天然形成温度梯度，更多的格点有助于更好的模拟温度的非线性行为。
+$$
+\int_\Omega (-\Delta T)v\,dx
+=
+\int_\Omega \nabla T\cdot\nabla v\,dx
+-
+\int_{\partial\Omega}v\nabla T\cdot n\,ds.
+$$
 
-    批改：
-    - 方向正确：热点边缘附近确实需要更细网格。
-    - 建议把“非线性行为”改掉。当前 Poisson 方程是线性的；需要细网格不是因为方程非线性，而是因为热源在边缘处变化快或不连续，导致温度梯度变化较强。
-    - 更准确说法：热点边缘处 $f$ 从高值突然变为 0，局部解的曲率和梯度变化更明显。更细的网格可以更准确地解析这些局部变化，降低几何采样误差和离散误差。
+### Q13. 为什么分部积分后的边界项消失？
 
-4. 直接求解器和迭代求解器分别适合什么规模的问题？
+对齐次 Dirichlet 问题，测试函数取自零边界空间：
 
-    直接求解器适用于低自由度矩阵运算，迭代求解器适合高自由度。
+$$
+V_0=\{v: v=0\text{ on }\partial\Omega\}.
+$$
 
-    批改：
-    - 结论方向正确，但可以更完整。
-    - 直接求解器适合小到中等规模问题，优点是稳健、精度高、调参少；缺点是内存消耗大，稀疏矩阵分解时会产生 fill-in。
-    - 迭代求解器适合大规模稀疏系统，尤其是 3D FEM/FD 问题；优点是内存更可控，能利用稀疏矩阵乘法；缺点是需要收敛判据和预条件器。
-    - 对当前 Poisson 问题，矩阵是稀疏、对称、正定的，因此 CG 是合适的迭代方法。
-    - 更完整答案可以写成：二维小规模实验中直接求解器通常更快；当自由度增大到几十万、几百万，尤其是三维问题时，迭代求解器配合预条件器更适合。
+因此边界项
 
-### 19.5 扩展题
+$$
+\int_{\partial\Omega}v\nabla T\cdot n\,ds
+$$
 
-1. 设计一个有两个不同热导率区域的芯片模型。
-2. 写出非均匀热导率问题的弱形式。
-3. 写出瞬态热方程的后向 Euler 离散。
-4. 设计一个 AI surrogate model 的输入参数和输出温度场。
+因为 $v=0$ 而消失。
+
+### Q14. 最终弱形式是什么？
+
+寻找 $T\in V$，使得对任意测试函数 $v\in V_0$：
+
+$$
+\int_\Omega\nabla T\cdot\nabla v\,dx
+=
+\int_\Omega fv\,dx.
+$$
+
+齐次 Dirichlet 条件下，通常 $V=V_0$。
+
+### Q15. 残差角度如何理解弱形式？
+
+令近似解为 $T_h$，残差为：
+
+$$
+R=-\Delta T_h-f.
+$$
+
+Galerkin 方法不是要求 $R$ 在每个点都为零，而是要求残差对所有测试函数方向正交：
+
+$$
+\int_\Omega Rv_h\,dx=0,
+\quad \forall v_h\in V_h.
+$$
+
+经过分部积分后，就得到有限元弱形式。
+
+### Q16. 测试函数和基函数是否相同？
+
+在标准 Galerkin FEM 中，测试空间和 trial space 通常取同一个有限元空间。因此测试函数可以取为基函数：
+
+$$
+v_h=\phi_i.
+$$
+
+但概念上二者角色不同：trial function 用来表示未知解，test function 用来投影残差。
+
+### Q17. 非齐次 Dirichlet 条件下，测试函数还为零吗？
+
+是。若边界条件为 $T=g$，通常把解写成：
+
+$$
+T=\tilde T+T_g,
+$$
+
+其中 $T_g$ 满足边界值，$\tilde T$ 在边界为零。测试函数仍取零边界空间，所以分部积分边界项仍因测试函数为零而消失。
+
+## C. 有限元离散
+
+### Q18. 有限元空间 $V_h$ 是什么？
+
+$V_h$ 是有限维函数空间，由有限元 basis functions 张成：
+
+$$
+V_h=\mathrm{span}\{\phi_1,\phi_2,\dots,\phi_N\}.
+$$
+
+这里 $N$ 是自由度数量。对 P1 Lagrange 元，通常每个 mesh vertex 对应一个自由度。
+
+### Q19. span 是什么意思？
+
+$\mathrm{span}$ 表示所有线性组合的集合：
+
+$$
+\mathrm{span}\{\phi_1,\dots,\phi_N\}
+=
+\left\{
+\sum_{j=1}^{N}U_j\phi_j
+\right\}.
+$$
+
+因此 $V_h$ 中的任意函数都可以写成 basis functions 的线性组合。
+
+### Q20. 近似温度场 $T_h$ 如何表示？
+
+有限元近似写作：
+
+$$
+T_h(x,y)=\sum_{j=1}^{N}U_j\phi_j(x,y).
+$$
+
+$U_j$ 是第 $j$ 个自由度的系数。对 P1 Lagrange 元，$U_j$ 就是第 $j$ 个节点处的温度值。
+
+### Q21. 节点是什么意思？
+
+节点是 mesh 划分后用于定义自由度的位置。对三角形 P1 Lagrange 元，节点就是 triangle vertices。更高阶 Lagrange 元还会有边中点、单元内部点等额外节点。
+
+### Q22. 自由度是什么意思？
+
+自由度是离散未知量的数量和位置。对 P1 Lagrange 温度场，每个非边界节点有一个未知温度系数。Dirichlet 边界节点被固定，不再作为自由未知量参与求解。
+
+### Q23. Lagrange basis function 有什么特征？
+
+第 $i$ 个 Lagrange basis function 满足 nodal property：
+
+$$
+\phi_i(x_j)=\delta_{ij}.
+$$
+
+也就是在自己的节点为 1，在其他节点为 0。
+
+### Q24. 为什么 P1 Lagrange basis 是一次 polynomial？
+
+P1 表示单元上使用一次多项式。对 triangle cell，basis function 在每个三角形内是线性函数。许多 P1 basis functions 拼接起来，形成全局连续、分片线性的近似温度场。
+
+### Q25. 基函数定义在整个区域还是局部？
+
+全局 basis function $\phi_i$ 是定义在整个区域 $\Omega$ 上的函数，但它只在与节点 $i$ 相邻的一圈单元上非零。这叫局部支撑。
+
+### Q26. 有限元矩阵元素 $A_{ij}$ 和 $b_i$ 是什么？
+
+将
+
+$$
+T_h=\sum_jU_j\phi_j
+$$
+
+代入弱形式，并取 $v_h=\phi_i$，得到：
+
+$$
+\sum_jU_j\int_\Omega\nabla\phi_j\cdot\nabla\phi_i\,dx
+=
+\int_\Omega f\phi_i\,dx.
+$$
+
+因此：
+
+$$
+A_{ij}=\int_\Omega\nabla\phi_j\cdot\nabla\phi_i\,dx,
+$$
+
+$$
+b_i=\int_\Omega f\phi_i\,dx.
+$$
+
+### Q27. 为什么 stiffness matrix 是 sparse？
+
+稀疏性来自 basis functions 的局部支撑。若 $\phi_i$ 和 $\phi_j$ 的支撑不重叠，则：
+
+$$
+A_{ij}=\int_\Omega\nabla\phi_j\cdot\nabla\phi_i\,dx=0.
+$$
+
+所以一个节点只和相邻节点耦合，远处节点对应的矩阵元素为零。
+
+### Q28. 稀疏性是否来自 basis functions 正交？
+
+不是。Lagrange basis functions 一般不正交。矩阵稀疏来自局部支撑和 mesh 的局部连接结构。
+
+### Q29. stiffness matrix 的英文是什么？
+
+刚度矩阵是 stiffness matrix。对 Poisson/FEM 问题，它通常指：
+
+$$
+A_{ij}=\int_\Omega\nabla\phi_j\cdot\nabla\phi_i\,dx.
+$$
+
+### Q30. stiffness matrix 为什么通常是 symmetric？
+
+因为：
+
+$$
+A_{ij}
+=
+\int_\Omega\nabla\phi_j\cdot\nabla\phi_i\,dx
+=
+\int_\Omega\nabla\phi_i\cdot\nabla\phi_j\,dx
+=
+A_{ji}.
+$$
+
+### Q31. stiffness matrix 为什么 positive definite？
+
+对非零函数
+
+$$
+v_h=\sum_iU_i\phi_i,
+$$
+
+有：
+
+$$
+U^TAU=\int_\Omega |\nabla v_h|^2\,dx.
+$$
+
+在零 Dirichlet 边界条件下，若 $v_h$ 非零，则该积分大于零。因此矩阵是 positive definite。
+
+## D. 有限差分与 Kronecker 结构
+
+### Q32. FD 中 $n$ 和 $h$ 的关系是什么？
+
+有限差分脚本中 $n$ 表示每个方向的内部未知点数。单位区间有两个边界点，因此：
+
+$$
+h=\frac{1}{n+1}.
+$$
+
+### Q33. 为什么不是 $h=1/n$？
+
+因为 $n$ 是内部未知点数量，不是切分的区间数量。若有 $n$ 个内部点，加上两个边界点，总共有 $n+2$ 个点，因此区间数是 $n+1$。
+
+### Q34. 二维五点差分格式是什么？
+
+对内部点 $(i,j)$：
+
+$$
+-\Delta T_{i,j}
+\approx
+\frac{
+4T_{i,j}
+-T_{i-1,j}
+-T_{i+1,j}
+-T_{i,j-1}
+-T_{i,j+1}
+}{h^2}.
+$$
+
+### Q35. 二维 Laplacian 矩阵为什么可以写成 Kronecker product？
+
+二维算子可拆成两个方向：
+
+$$
+-\Delta=-\partial_{xx}-\partial_{yy}.
+$$
+
+离散后，$x$ 方向作用在每一行上，$y$ 方向作用在每一列上。若一维矩阵为 $T$，单位矩阵为 $I$，则二维矩阵为：
+
+$$
+A=\frac{1}{h^2}(I\otimes T+T\otimes I).
+$$
+
+### Q36. `kron(I, T)` 和 `kron(T, I)` 分别代表什么？
+
+`kron(I, T)` 表示在一个方向上对每条线应用一维 Laplacian，另一个方向保持不变。`kron(T, I)` 表示反过来，在另一个方向应用一维 Laplacian。
+
+### Q37. 三维 Laplacian 的 Kronecker 形式是什么？
+
+三维中：
+
+$$
+-\Delta=-\partial_{xx}-\partial_{yy}-\partial_{zz}.
+$$
+
+离散矩阵为：
+
+$$
+A=\frac{1}{h^2}
+\left(
+I\otimes I\otimes T
++
+I\otimes T\otimes I
++
+T\otimes I\otimes I
+\right).
+$$
+
+这正对应 `solve_fd_heat_3D.py` 中的矩阵构造。
+
+### Q38. `source.reshape(-1)` 做什么？
+
+它把二维或三维数组按内存顺序 flatten 成一维向量。因为线性系统写成：
+
+$$
+AU=b,
+$$
+
+其中 $U$ 和 $b$ 都是一维向量，所以需要把网格上的 source array 展平。
+
+### Q39. `matrix_nnz` 是什么？
+
+`matrix_nnz` 是 sparse matrix 中非零元素的数量。它用于衡量矩阵稀疏程度和存储规模。
+
+### Q40. residual 如何定义？
+
+对线性系统：
+
+$$
+AU=b,
+$$
+
+残差为：
+
+$$
+r=b-AU.
+$$
+
+相对残差通常为：
+
+$$
+\frac{\|r\|}{\|b\|}.
+$$
+
+它用于检查数值解是否真的满足离散方程。
+
+## E. 求解器与数值尺度
+
+### Q41. CG 是什么？
+
+CG 是 Conjugate Gradient method，共轭梯度法。它是求解 sparse、symmetric、positive definite 线性系统的经典迭代方法。
+
+### Q42. 为什么 Poisson 问题适合 CG？
+
+零 Dirichlet 条件下，Poisson 离散矩阵通常是 sparse、symmetric、positive definite。因此满足 CG 的基本适用条件。
+
+### Q43. `rtol` 和 `atol` 分别是什么？
+
+`rtol` 是 relative tolerance，控制相对残差停止条件。`atol` 是 absolute tolerance，控制绝对残差停止条件。SciPy CG 通常检查类似：
+
+$$
+\|b-Ax\|\leq \max(\mathrm{rtol}\|b\|,\mathrm{atol}).
+$$
+
+脚本中 `atol=0.0` 表示主要依赖相对残差。
+
+### Q44. 直接求解器和迭代求解器如何选择？
+
+直接求解器适合小到中等规模问题，优点是稳健、调参少；缺点是内存消耗大，会产生 fill-in。迭代求解器适合大规模 sparse systems，尤其是 3D 问题，但通常需要合适的预条件器。
+
+### Q45. 为什么小规模 2D 问题中 CG 可能比 direct solver 慢？
+
+小规模二维问题的矩阵不大，稀疏直接求解器开销很低。CG 虽然每步便宜，但需要多次迭代，并且 Python 调用、收敛判断也有开销。因此小规模测试中 direct solver 更快并不奇怪。
+
+### Q46. 热源尺度如何估计温度尺度？
+
+粗略地，若热源总量为：
+
+$$
+Q=\int_\Omega f\,dx,
+$$
+
+温度尺度会随 $Q$ 线性变化。更具体地：
+
+$$
+T=(-\Delta)^{-1}f.
+$$
+
+所以改变 source strength 或 source area 都会影响 $T_{\max}$。
+
+### Q47. 为什么 Gaussian 和 square source 的 $T_{\max}$ 不能只看峰值强度？
+
+因为峰值强度相同不代表总热源量相同。需要比较：
+
+$$
+\int_\Omega f\,dx.
+$$
+
+如果 Gaussian 的积分小于 square source，即使峰值都是 100，温度峰值也可能更低。
+
+### Q48. 为什么 residual 的绝对值可能随自由度增加而变大？
+
+绝对残差是向量范数，向量长度随自由度增加而增加。更多自由度意味着 residual vector 有更多分量，因此绝对残差不一定可直接跨网格比较。
+
+### Q49. 为什么更应该看 relative residual？
+
+relative residual 用 $\|b\|$ 做归一化：
+
+$$
+\frac{\|b-AU\|}{\|b\|}.
+$$
+
+它更适合比较不同网格、不同热源强度下的线性系统求解质量。
+
+## F. FEniCSx 实现
+
+### Q50. FEniCSx 中 mesh 对应什么数学对象？
+
+`mesh` 对应计算区域 $\Omega$ 的离散划分。代码中：
+
+```python
+domain = mesh.create_unit_square(MPI.COMM_WORLD, n, n, mesh.CellType.triangle)
+```
+
+表示把单位正方形划分为 triangle cells。
+
+### Q51. `cell_type=mesh.CellType.triangle` 是什么意思？
+
+它表示二维 mesh 的单元是三角形。单位正方形中的小方格会被切分成 triangles，FEM basis functions 和积分都定义在这些 triangles 上。
+
+### Q52. `v_space = fem.functionspace(domain, ("Lagrange", 1))` 是什么意思？
+
+它定义 P1 Lagrange 有限元空间。该空间中的函数在每个三角形上是一次多项式，并且全局连续。
+
+### Q53. `source = fem.Function(v_space)` 是什么意思？
+
+它定义一个属于 $V_h$ 的有限元函数，用来表示离散热源 $f_h$。当前脚本把 source 也放入 P1 Lagrange 空间。
+
+### Q54. `heat_source(x)` 中的 `x` shape 是什么？
+
+在二维中，`x` 的形状通常是：
+
+```python
+(2, num_points)
+```
+
+其中 `x[0]` 是所有采样点的横坐标，`x[1]` 是纵坐标。返回值应为 shape 为 `(num_points,)` 的一维数组。
+
+### Q55. `source.interpolate(heat_source)` 做什么？
+
+它把 Python 函数 `heat_source` 插值到有限元空间中，得到 FEM 函数 $f_h$。对 P1 Lagrange 元来说，就是在节点上取 source 值，再在每个 triangle 内线性延拓。
+
+### Q56. 为什么 square source 的 interpolation 需要 caveat？
+
+真实 square source 是 discontinuous，但 P1 Lagrange 空间是连续、分片线性的。插值后参与积分的是 $f_h$，不是精确的分片常数 $f$。在 source 边界附近，$f_h$ 会线性过渡，粗网格下热源积分也会受 mesh 对齐影响。
+
+### Q57. 如果想更忠实地表示分片常数热源，应怎么办？
+
+可以使用 cellwise constant 的 `DG0` source，或在 UFL form 中使用 conditional expression。这样能更接近原始 discontinuous square source。
+
+### Q58. FEniCSx 中 TrialFunction 和 TestFunction 分别是什么？
+
+`TrialFunction` 表示未知函数所在方向，用来形成矩阵；`TestFunction` 表示测试函数，用来形成弱形式中的投影方程。在线性问题中：
+
+```python
+u = ufl.TrialFunction(v_space)
+v = ufl.TestFunction(v_space)
+```
+
+### Q59. UFL 是什么？
+
+UFL 是 Unified Form Language。它允许用接近数学表达式的方式写弱形式，例如：
+
+```python
+a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx
+l_form = source * v * ufl.dx
+```
+
+### Q60. `a` 和 `l_form` 分别对应什么？
+
+`a` 是 bilinear form：
+
+$$
+a(u,v)=\int_\Omega\nabla u\cdot\nabla v\,dx.
+$$
+
+`l_form` 是 linear form：
+
+$$
+L(v)=\int_\Omega fv\,dx.
+$$
+
+### Q61. Dirichlet boundary condition 在代码中如何施加？
+
+代码先定位边界自由度：
+
+```python
+boundary_dofs = fem.locate_dofs_geometrical(v_space, boundary)
+```
+
+再施加：
+
+```python
+bc = fem.dirichletbc(fem.Constant(domain, 0.0), boundary_dofs, v_space)
+```
+
+这表示把边界节点温度固定为 0。
+
+### Q62. PETSc options 中 `ksp_type="cg"` 是什么？
+
+`ksp_type` 指 Krylov subspace solver 类型。`cg` 表示使用 Conjugate Gradient method。
+
+### Q63. PETSc options 中 `pc_type="hypre"` 是什么？
+
+`pc_type` 指 preconditioner 类型。`hypre` 通常用于代数多重网格预条件，适合 Poisson 类问题。
+
+### Q64. `pc_type="lu"` 是什么？
+
+`lu` 表示使用 LU factorization 作为求解方式或预条件方式。它更接近直接求解，通常稳健但内存消耗大，不适合很大规模 3D 问题。
+
+### Q65. FEniCSx 输出的 `.xdmf` 和 `.h5` 分别是什么？
+
+`.xdmf` 是 XML metadata，描述 mesh 和 field。`.h5` 存实际数值数据。ParaView 打开 `.xdmf` 时会自动读取配套 `.h5`。
+
+### Q66. 为什么还要输出 `temperature.png`？
+
+`temperature.png` 是 quick-look 图，用于在 VS Code、GitHub 或文档中快速检查结果。ParaView 仍然更适合交互式检查 mesh、field、contour 和切片。
+
+### Q67. ParaView 中如何看 mesh？
+
+把 representation 从 `Surface` 改成：
+
+```text
+Surface With Edges
+```
+
+即可同时显示温度场和 mesh edges。若只想看网格线，可用 `Wireframe`。
+
+## G. 代码与结果分析
+
+### Q68. `pcolormesh` 做什么？
+
+`pcolormesh(x, y, value)` 根据网格坐标和对应数值画二维色彩图。它要求坐标数组和值数组在索引上对应，即同一个 index 表示同一个空间位置。
+
+### Q69. `xx`、`yy`、`source` 的 shape 为什么要一致？
+
+因为 `xx[i,j]`、`yy[i,j]`、`source[i,j]` 共同表示同一个网格点或 cell 附近的值。绘图时不是只看数值集合，而是看坐标和值之间的对应关系。
+
+### Q70. `outdir.resolve()` 做什么？
+
+`Path.resolve()` 返回路径的绝对形式。它常用于 summary 或 print 输出，方便以后知道结果文件具体写在哪里。
+
+### Q71. `outdir.mkdir(parents=True, exist_ok=True)` 做什么？
+
+它创建输出目录。`parents=True` 表示如果上级目录不存在，也一起创建；`exist_ok=True` 表示目录已存在时不报错。
+
+### Q72. `from __future__ import annotations` 是什么？
+
+它让类型注解延迟求值。这样可以减少运行时类型解析问题，也方便在类型注解中引用尚未定义的类或较新的 typing 语法。
+
+### Q73. Gaussian source 为什么通常比 square source 产生更平滑的温度场？
+
+Gaussian source 本身是光滑函数；square source 在边界处有跳变。椭圆型方程有平滑效应，但右端项的不连续仍会在温度梯度中留下局部变化。因此 Gaussian 的温度场通常更平滑。
+
+### Q74. 为什么热点边缘附近需要更细 mesh？
+
+因为热点边缘处 $f$ 变化快，甚至不连续。更细 mesh 可以更好解析局部梯度和曲率变化，降低几何采样误差和离散误差。
+
+### Q75. 如何判断一次数值计算是否合理？
+
+至少检查：
+
+- 边界温度是否满足 Dirichlet 条件；
+- $T_{\max}$ 是否出现在热源附近；
+- `heat_source_integral` 是否符合预期；
+- relative residual 是否足够小；
+- 网格加密后关键 FoM 是否收敛；
+- 结果图是否和物理直觉一致。
+
+### Q76. 可以用哪些 FoM 比较结果？
+
+常用 figures of merit 包括：
+
+- $T_{\max}$；
+- $T_{\min}$；
+- mean temperature；
+- heat source integral；
+- relative residual；
+- energy norm；
+- 不同网格或方法之间的 field error。
+
+### Q77. FD 和 FEM 结果为什么不会完全一样？
+
+两者离散路径不同。FD 使用点值和 stencil；FEM 使用弱形式、basis functions 和数值积分。即使连续问题相同，有限网格下也会有不同离散误差。网格加密后，若热源和边界处理一致，两者应趋向同一个连续解。
+
+### Q78. 为什么 FEniCSx 的 $h$ 和 FD 的 $h$ 定义不同？
+
+FEniCSx 中 `n` 表示每个方向的 mesh subdivision 数，所以：
+
+$$
+h\approx\frac{1}{n}.
+$$
+
+FD 脚本中 `n` 表示内部未知点数，所以：
+
+$$
+h=\frac{1}{n+1}.
+$$
+
+比较 FD 和 FEniCSx 时要注意这个差异。
+
+## H. 扩展问题
+
+### Q79. 非均匀热导率问题的 PDE 是什么？
+
+若热导率为 $k(x,y)$，稳态方程为：
+
+$$
+-\nabla\cdot(k\nabla T)=f.
+$$
+
+这比 $-\Delta T=f$ 更一般，适合多材料芯片模型。
+
+### Q80. 非均匀热导率的弱形式是什么？
+
+乘以测试函数并分部积分，得到：
+
+$$
+\int_\Omega k\nabla T\cdot\nabla v\,dx
+=
+\int_\Omega fv\,dx.
+$$
+
+因此 stiffness matrix 变为：
+
+$$
+A_{ij}=\int_\Omega k\nabla\phi_j\cdot\nabla\phi_i\,dx.
+$$
+
+### Q81. 瞬态热方程是什么？
+
+常见形式为：
+
+$$
+\frac{\partial T}{\partial t}
+-
+\alpha\Delta T
+=
+f.
+$$
+
+其中 $\alpha$ 是热扩散率。
+
+### Q82. 后向 Euler 如何离散瞬态热方程？
+
+设时间步长为 $\Delta t$，则：
+
+$$
+\frac{T^{n+1}-T^n}{\Delta t}
+-
+\alpha\Delta T^{n+1}
+=
+f^{n+1}.
+$$
+
+有限元离散后通常得到：
+
+$$
+(M+\Delta t\,\alpha A)U^{n+1}
+=
+MU^n+\Delta t\,b^{n+1}.
+$$
+
+其中 $M$ 是 mass matrix，$A$ 是 stiffness matrix。
+
+### Q83. 如何设计一个两种热导率区域的芯片模型？
+
+可以令：
+
+$$
+k(x,y)=
+\begin{cases}
+k_1, & (x,y)\in\Omega_1,\\
+k_2, & (x,y)\in\Omega_2.
+\end{cases}
+$$
+
+其中 $\Omega_1$ 表示高导热材料区，$\Omega_2$ 表示低导热材料区。然后求解：
+
+$$
+-\nabla\cdot(k\nabla T)=f.
+$$
+
+### Q84. AI surrogate model 的输入和输出可以如何设计？
+
+输入可以包括：
+
+- 热源位置；
+- 热源强度；
+- 热源宽度；
+- 材料热导率；
+- 几何参数；
+- 边界条件参数。
+
+输出可以是：
+
+- 全场温度 $T(x,y)$；
+- $T_{\max}$；
+- 热点位置；
+- 若干 sensor points 的温度。
+
+### Q85. surrogate model 为什么仍需要 PDE solver？
+
+PDE solver 用来生成高质量训练数据，并作为验证基准。surrogate model 只能近似已学习参数范围内的输入输出映射，不能替代物理模型本身。
+
+### Q86. 学完本项目后，下一步最自然的问题是什么？
+
+最自然的扩展是：
+
+- 用 FEniCSx 支持 Gaussian 和 two Gaussian source；
+- 使用 `DG0` 表示 discontinuous square source；
+- 做 FD/FEM field-level error；
+- 加入非均匀热导率；
+- 从 steady problem 走向 transient heat equation；
+- 把 2D 模型扩展到 3D FEM。
 
 ---
 
