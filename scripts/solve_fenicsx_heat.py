@@ -82,6 +82,8 @@ def create_mesh_and_space(n: int):
 
 def create_source(v_space, kind: str, strength: float):
     """Interpolate a configured source into the finite element space."""
+    # Represent the source as a discrete FEM field on the same P1 space as the
+    # temperature. This is convenient for UFL integration, but not mandatory.
     source = fem.Function(v_space)
     # Caveat for square: the intended source is discontinuous, but interpolation
     # into continuous P1 Lagrange gives a nodal approximation, not a cellwise

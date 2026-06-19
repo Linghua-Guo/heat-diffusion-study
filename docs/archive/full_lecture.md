@@ -1316,7 +1316,7 @@ $$
 source = fem.Function(v_space)
 ```
 
-这里把热源 $f$ 也放在同一个 P1 Lagrange 空间中。也就是说，热源不是作为任意解析表达式直接参与积分，而是先被插值到有限元空间。
+这里把热源 $f$ 也放在同一个 P1 Lagrange 空间中。也就是说，热源不是作为任意解析表达式直接参与积分，而是先被 interpolate 到有限元空间。
 
 当前脚本的热源是 square source：
 
@@ -1341,7 +1341,7 @@ $$
 source.interpolate(heat_source)
 ```
 
-表示把这个函数插值到有限元节点上。粗网格时，square source 的边界不一定与 mesh 对齐，因此离散热源积分 $\int_\Omega f_h dx$ 会随 mesh 变化。
+表示把这个函数 interpolate 到有限元节点上。粗网格时，square source 的边界不一定与 mesh 对齐，因此离散热源积分 $\int_\Omega f_h dx$ 会随 mesh 变化。
 
 边界条件：
 
@@ -1550,7 +1550,7 @@ $$
 - `locate_dofs_geometrical` 是否找到了边界自由度；
 - `bcs=[bc]` 是否传入 `LinearProblem`。
 
-### 15.2 热源没有插值成功
+### 15.2 热源没有 interpolate 成功
 
 现象：
 
@@ -1813,7 +1813,7 @@ $$
 
 - 线性代数基础；
 - 矩阵乘法；
-- 多项式插值的直觉。
+- polynomial interpolation 的直觉。
 
 讲授重点：
 

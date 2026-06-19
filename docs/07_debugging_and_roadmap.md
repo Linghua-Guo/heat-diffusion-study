@@ -16,7 +16,7 @@
 - `locate_dofs_geometrical` 是否找到了边界自由度；
 - `bcs=[bc]` 是否传入 `LinearProblem`。
 
-### 15.2 热源没有插值成功
+### 15.2 热源没有 interpolate 成功
 
 现象：
 
@@ -279,7 +279,7 @@ $$
 
 - 线性代数基础；
 - 矩阵乘法；
-- 多项式插值的直觉。
+- polynomial interpolation 的直觉。
 
 讲授重点：
 

@@ -26,7 +26,84 @@ a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx
 l_form = source * v * ufl.dx
 ```
 
-#### 14.7.1 `solve_fenicsx_heat.py` 代码解读
+#### 14.7.1 UFL notation 小附录
+
+UFL 的 notation 要分成两层理解：
+
+```text
+pointwise expression
+integration measure
+```
+
+例如：
+
+```python
+ufl.inner(ufl.grad(u), ufl.grad(v))
+```
+
+只表示每个空间点上的向量内积：
+
+$$
+\nabla u(x)\cdot\nabla v(x).
+$$
+
+在二维中就是：
+
+$$
+\frac{\partial u}{\partial x}
+\frac{\partial v}{\partial x}
++
+\frac{\partial u}{\partial y}
+\frac{\partial v}{\partial y}.
+$$
+
+它只是 integrand，还不是区域积分。乘上：
+
+```python
+* ufl.dx
+```
+
+才表示在 cell domain $\Omega$ 上积分：
+
+$$
+\int_\Omega \nabla u\cdot\nabla v\,dx.
+$$
+
+因此：
+
+| UFL | 数学含义 |
+|---|---|
+| `ufl.grad(u)` | $\nabla u$ |
+| `ufl.inner(a, b)` | pointwise inner product $a(x)\cdot b(x)$ |
+| `* ufl.dx` | 对 cell domain 积分 |
+| `* ufl.ds` | 对外边界 facet 积分 |
+| `* ufl.dS` | 对内部 facet 积分 |
+
+所以：
+
+```python
+ufl.inner(u, v) * ufl.dx
+```
+
+对应函数空间里的 $L^2$ inner product：
+
+$$
+\int_\Omega uv\,dx.
+$$
+
+而：
+
+```python
+ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx
+```
+
+对应 Poisson/FEM 弱形式中的 gradient inner product：
+
+$$
+\int_\Omega \nabla u\cdot\nabla v\,dx.
+$$
+
+#### 14.7.2 `solve_fenicsx_heat.py` 代码解读
 
 当前脚本位于：
 
@@ -137,13 +214,13 @@ def evaluate_source(x, kind, strength):
     ...
 ```
 
-它的输入 `x` 是 FEniCSx 传入的插值点坐标。在二维中，shape 近似为：
+它的输入 `x` 是 FEniCSx 传入的 interpolation points 坐标。在二维中，shape 近似为：
 
 ```python
 x.shape == (2, num_points)
 ```
 
-其中 `x[0]` 是所有点的横坐标，`x[1]` 是所有点的纵坐标。函数返回 shape 为 `(num_points,)` 的一维数组，表示每个插值点处的热源值。
+其中 `x[0]` 是所有点的横坐标，`x[1]` 是所有点的纵坐标。函数返回 shape 为 `(num_points,)` 的一维数组，表示每个 interpolation point 处的热源值。
 
 当前脚本支持：
 
@@ -171,9 +248,9 @@ source = fem.Function(v_space)
 source.interpolate(lambda x: evaluate_source(x, kind, strength))
 ```
 
-表示把这个函数插值到有限元节点上。
+表示把这个函数 interpolate 到有限元节点上。
 
-这里有一个重要 caveat：真实的 square source 是不连续函数，但当前代码把它插值到连续的 P1 Lagrange 空间。也就是说，FEniCSx 实际参与积分的是 $f_h$，不是精确的分片常数 $f$。对 P1 Lagrange 元来说，`evaluate_source(x, kind, strength)` 在节点上取值，然后由 basis functions 在单元内线性延拓。
+这里有一个重要 caveat：真实的 square source 是不连续函数，但当前代码把它 interpolate 到连续的 P1 Lagrange 空间。也就是说，FEniCSx 实际参与积分的是 $f_h$，不是精确的分片常数 $f$。对 P1 Lagrange 元来说，`evaluate_source(x, kind, strength)` 在节点上取值，然后由 basis functions 在单元内线性延拓。
 
 因此：
 
