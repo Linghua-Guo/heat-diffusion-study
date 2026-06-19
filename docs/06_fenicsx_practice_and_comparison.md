@@ -77,8 +77,12 @@ import ufl
 
 ```python
 parser.add_argument("--n", type=int, default=64)
+parser.add_argument("--source", choices=SOURCE_CHOICES, default="square")
 parser.add_argument("--strength", type=float, default=100.0)
 parser.add_argument("--outdir", type=Path, default=Path("results/baselines/fenicsx_single"))
+parser.add_argument("--ksp-type", default="cg")
+parser.add_argument("--pc-type", default="hypre")
+parser.add_argument("--ksp-rtol", type=float, default=1e-10)
 ```
 
 这里 `--n` 在 FEniCSx 中表示每个方向的 mesh subdivision 数。单位正方形被切成 `n` 份，因此 mesh scale 近似为：
@@ -126,22 +130,31 @@ $$
 
 这里的 $U_j$ 是第 $j$ 个自由度，即对应节点上的温度系数。
 
-热源函数：
+热源函数被单独拆成 `evaluate_source`：
 
 ```python
-source = fem.Function(v_space)
+def evaluate_source(x, kind, strength):
+    ...
 ```
 
-这里把热源 $f$ 也放在同一个 P1 Lagrange 空间中。也就是说，热源不是作为任意解析表达式直接参与积分，而是先被插值到有限元空间。
-
-当前脚本的热源是 square source：
+它的输入 `x` 是 FEniCSx 传入的插值点坐标。在二维中，shape 近似为：
 
 ```python
-inside = (x[0] > 0.4) & (x[0] < 0.6) & (x[1] > 0.4) & (x[1] < 0.6)
-values[inside] = args.strength
+x.shape == (2, num_points)
 ```
 
-数学上对应：
+其中 `x[0]` 是所有点的横坐标，`x[1]` 是所有点的纵坐标。函数返回 shape 为 `(num_points,)` 的一维数组，表示每个插值点处的热源值。
+
+当前脚本支持：
+
+```text
+square
+gaussian
+two_gaussian
+two_hotspots
+```
+
+square source 数学上对应：
 
 $$
 f(x,y)=
@@ -154,12 +167,13 @@ $$
 然后：
 
 ```python
-source.interpolate(heat_source)
+source = fem.Function(v_space)
+source.interpolate(lambda x: evaluate_source(x, kind, strength))
 ```
 
 表示把这个函数插值到有限元节点上。
 
-这里有一个重要 caveat：真实的 square source 是不连续函数，但当前代码把它插值到连续的 P1 Lagrange 空间。也就是说，FEniCSx 实际参与积分的是 $f_h$，不是精确的分片常数 $f$。对 P1 Lagrange 元来说，`heat_source(x)` 在节点上取值，然后由 basis functions 在单元内线性延拓。
+这里有一个重要 caveat：真实的 square source 是不连续函数，但当前代码把它插值到连续的 P1 Lagrange 空间。也就是说，FEniCSx 实际参与积分的是 $f_h$，不是精确的分片常数 $f$。对 P1 Lagrange 元来说，`evaluate_source(x, kind, strength)` 在节点上取值，然后由 basis functions 在单元内线性延拓。
 
 因此：
 

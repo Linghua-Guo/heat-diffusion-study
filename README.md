@@ -74,15 +74,16 @@ python scripts/run_fd_experiments.py --mesh-n 16 32 64 128 --strengths 50 100 20
 
 ```bash
 conda activate fenicsx
-bash scripts/run_fenicsx_heat.sh --n 64 --outdir results/baselines/fenicsx_single
+bash scripts/run_fenicsx_heat.sh --n 64 --source square --outdir results/baselines/fenicsx_single
 ```
 
 该脚本会输出 ParaView 可读的 `temperature.xdmf`/`temperature.h5`，并额外保存 matplotlib quick-look 图 `temperature.png`。
+支持的热源包括 `square`、`gaussian`、`two_gaussian` 和 `two_hotspots`。
 
 若 FEniCSx 环境路径不同：
 
 ```bash
-FENICSX_PYTHON=/path/to/fenicsx/bin/python bash scripts/run_fenicsx_heat.sh --n 64
+FENICSX_PYTHON=/path/to/fenicsx/bin/python bash scripts/run_fenicsx_heat.sh --n 64 --source gaussian
 ```
 
 ## 测试
